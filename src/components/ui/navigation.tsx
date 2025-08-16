@@ -11,11 +11,9 @@ export function Navigation({ className }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const navItems = [
-    { label: "Início", href: "#home" },
-    { label: "Dashboard", href: "#dashboard" },
-    { label: "Análises", href: "#analysis" },
-    { label: "Relatórios", href: "#reports" },
-    { label: "Contato", href: "#contact" },
+    { label: "Dashboard", href: "/" },
+    { label: "Mapa", href: "/map" },
+    { label: "Análises", href: "/analytics" },
   ];
 
   return (
@@ -29,7 +27,7 @@ export function Navigation({ className }: NavigationProps) {
               <ShieldCheck className="w-4 h-4 text-accent absolute -bottom-1 -right-1" />
             </div>
             <span className="text-xl font-display font-bold text-earth-gradient">
-              Soil Safety
+              Solo Seguro
             </span>
           </div>
 
@@ -44,9 +42,6 @@ export function Navigation({ className }: NavigationProps) {
                 {item.label}
               </a>
             ))}
-            <Button variant="earth" size="sm">
-              Começar Agora
-            </Button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -74,9 +69,6 @@ export function Navigation({ className }: NavigationProps) {
                   {item.label}
                 </a>
               ))}
-              <Button variant="earth" size="sm" className="mt-4 w-fit">
-                Começar Agora
-              </Button>
             </div>
           </div>
         )}

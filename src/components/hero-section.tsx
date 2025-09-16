@@ -25,7 +25,7 @@ export function HeroSection() {
   return (
     <section id="home" className="pt-16 min-h-screen relative overflow-hidden">
       {/* Background gradient */}
-      <div className="absolute inset-0 subtle-gradient" />
+      <div className="absolute inset-0 bg-background" />
       
       <div className="container mx-auto px-4 py-20 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 items-center">

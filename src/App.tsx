@@ -22,10 +22,21 @@ export const ThemeContext = createContext<ThemeContextProps>({
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [theme, setTheme] = useState('light');
+
+  // Recupera o tema do localStorage ou usa 'light' por padrão
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'light';
+  });
 
   useEffect(() => {
-    document.documentElement.className = theme;
+    // Aplica a classe 'dark' no html conforme o tema
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    // Salva o tema no localStorage
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   return (

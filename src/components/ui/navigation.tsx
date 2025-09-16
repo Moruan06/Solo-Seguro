@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Menu, X, Leaf, ShieldCheck } from "lucide-react";
+import { Menu, X, Leaf, ShieldCheck, Sun, Moon } from "lucide-react";
 import { Button } from "./button";
 import { cn } from "@/lib/utils";
+import { useContext } from "react";
+import { ThemeContext } from "@/App";
 
 interface NavigationProps {
   className?: string;
@@ -9,6 +11,7 @@ interface NavigationProps {
 
 export function Navigation({ className }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { theme, setTheme } = useContext(ThemeContext);
 
   const navItems = [
     { label: "Dashboard", href: "/" },
@@ -42,6 +45,13 @@ export function Navigation({ className }: NavigationProps) {
                 {item.label}
               </a>
             ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            >
+              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </Button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -69,6 +79,13 @@ export function Navigation({ className }: NavigationProps) {
                   {item.label}
                 </a>
               ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              >
+                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </Button>
             </div>
           </div>
         )}

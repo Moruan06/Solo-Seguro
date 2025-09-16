@@ -43,7 +43,7 @@ const Dashboard = () => {
       return [
         { title: "Temperatura", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Thermometer className="w-6 h-6" /> },
         { title: "Umidade", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Droplet className="w-6 h-6" /> },
-        { title: "Gás", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Wind className="w-6 h-6" /> },
+        { title: "Nível de Gás", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Wind className="w-6 h-6" /> },
       ];
     }
     
@@ -67,21 +67,54 @@ const Dashboard = () => {
       icon: <Droplet className="w-6 h-6" />,
     };
 
-    const gasData = {
-      title: "Gás",
-      value: gas > 700 ? "Crítico" : "Normal",
-      status: gas > 700 ? "danger" : "good",
-      sensor: `Valor Analógico: ${gas}`,
-      color: gas > 700 ? "text-danger" : "text-success",
-      icon: <Wind className="w-6 h-6" />,
+    // LÓGICA ATUALIZADA PARA O SENSOR DE GÁS COM MÚLTIPLOS NÍVEIS
+    const getGasData = (gasValue: number) => {
+      if (gasValue <= 700) {
+        return {
+          title: "Nível de Gás",
+          value: "Bom",
+          status: "good",
+          sensor: `Valor Analógico: ${gasValue}`,
+          color: "text-success",
+          icon: <Wind className="w-6 h-6" />,
+        };
+      } else if (gasValue <= 1200) {
+        return {
+          title: "Nível de Gás",
+          value: "Moderado",
+          status: "warning",
+          sensor: `Valor Analógico: ${gasValue}`,
+          color: "text-warning",
+          icon: <Wind className="w-6 h-6" />,
+        };
+      } else if (gasValue <= 2000) {
+        return {
+          title: "Nível de Gás",
+          value: "Ruim",
+          status: "danger",
+          sensor: `Valor Analógico: ${gasValue}`,
+          color: "text-danger",
+          icon: <Wind className="w-6 h-6" />,
+        };
+      } else { // Acima de 2000
+        return {
+          title: "Nível de Gás",
+          value: "Perigo",
+          status: "danger",
+          sensor: `Valor Analógico: ${gasValue}`,
+          color: "text-danger font-bold",
+          icon: <Wind className="w-6 h-6" />,
+        };
+      }
     };
+    
+    const gasData = getGasData(gas);
 
     return [temperatureData, humidityData, gasData];
   };
 
   const displayData = getDisplayData();
 
-  // --- MUDANÇA 1: Funções de Estilo (Helpers) Implementadas ---
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "good": return <CheckCircle className="w-4 h-4" />;
@@ -122,7 +155,6 @@ const Dashboard = () => {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {displayData.map((sensor, index) => (
-            // --- MUDANÇA 2: Estrutura do Card (JSX) Atualizada ---
             <Card key={index} className={`transition-all duration-300 hover:shadow-lg ${getCardBorderColor(sensor.status)}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -170,7 +202,7 @@ const Dashboard = () => {
             <AlertTriangle className="h-4 w-4 text-danger" />
             <AlertDescription className="text-danger font-medium">
               <strong>ATENÇÃO</strong><br />
-              Nível de gás crítico detectado!
+              Nível de gás acima do normal detectado!
             </AlertDescription>
           </Alert>
         )}

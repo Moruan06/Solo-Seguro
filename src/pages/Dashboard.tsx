@@ -1,59 +1,101 @@
+// src/pages/Dashboard.tsx
+
+import { useState, useEffect } from "react";
 import { Navigation } from "@/components/ui/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Thermometer, Droplet, FlaskConical, Wind, AlertTriangle, CheckCircle, AlertCircle } from "lucide-react";
+import { Thermometer, Droplet, Wind, AlertTriangle, CheckCircle, AlertCircle } from "lucide-react";
+
+type SensorData = {
+  temperature: number;
+  percent: number;
+  gas: number;
+};
 
 const Dashboard = () => {
-  const sensorData = [
-    {
-      title: "Temperatura",
-      value: "Estável",
-      icon: <Thermometer className="w-6 h-6" />,
-      status: "good",
-      sensor: "Temperatura ideal",
-      color: "text-success"
-    },
-    {
-      title: "Umidade",
-      value: "Alerta",
-      icon: <Droplet className="w-6 h-6" />,
-      status: "warning",
-      sensor: "Sensor FC-28",
-      color: "text-warning"
-    },
-    {
-      title: "pH",
-      value: "Altamente Ácido",
-      icon: <FlaskConical className="w-6 h-6" />,
-      status: "danger",
-      sensor: "Sensor pH400C",
-      color: "text-danger"
-    },
-    {
-      title: "Gás",
-      value: "Crítico",
-      icon: <Wind className="w-6 h-6" />,
-      status: "danger",
-      sensor: "Sensor MQ-135",
-      color: "text-danger"
-    }
-  ];
+  const [liveData, setLiveData] = useState<SensorData | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("http://192.168.4.1/data");
+        if (!response.ok) {
+          throw new Error("Falha na rede ou o dispositivo não respondeu");
+        }
+        const data: SensorData = await response.json();
+        setLiveData(data);
+        setLastUpdated(new Date());
+      } catch (error) {
+        console.error("Erro ao buscar dados do sensor:", error);
+      }
+    };
+
+    fetchData();
+    const intervalId = setInterval(fetchData, 2000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const getDisplayData = () => {
+    if (!liveData) {
+      return [
+        { title: "Temperatura", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Thermometer className="w-6 h-6" /> },
+        { title: "Umidade", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Droplet className="w-6 h-6" /> },
+        { title: "Gás", value: "Carregando...", status: "loading", sensor: "...", color: "text-muted-foreground", icon: <Wind className="w-6 h-6" /> },
+      ];
+    }
+    
+    const { temperature, percent, gas } = liveData;
+    
+    const temperatureData = {
+      title: "Temperatura",
+      value: temperature > 30 ? "Alta" : temperature < 15 ? "Baixa" : "Estável",
+      status: temperature > 30 ? "danger" : temperature < 15 ? "warning" : "good",
+      sensor: `Leitura: ${temperature.toFixed(1)} °C`,
+      color: temperature > 30 ? "text-danger" : temperature < 15 ? "text-warning" : "text-success",
+      icon: <Thermometer className="w-6 h-6" />,
+    };
+
+    const humidityData = {
+      title: "Umidade",
+      value: percent > 70 ? "Úmido" : percent < 30 ? "Seco" : "Moderado",
+      status: percent > 70 ? "good" : percent < 30 ? "danger" : "warning",
+      sensor: `Leitura: ${percent}%`,
+      color: percent > 70 ? "text-success" : percent < 30 ? "text-danger" : "text-warning",
+      icon: <Droplet className="w-6 h-6" />,
+    };
+
+    const gasData = {
+      title: "Gás",
+      value: gas > 700 ? "Crítico" : "Normal",
+      status: gas > 700 ? "danger" : "good",
+      sensor: `Valor Analógico: ${gas}`,
+      color: gas > 700 ? "text-danger" : "text-success",
+      icon: <Wind className="w-6 h-6" />,
+    };
+
+    return [temperatureData, humidityData, gasData];
+  };
+
+  const displayData = getDisplayData();
+
+  // --- MUDANÇA 1: Funções de Estilo (Helpers) Implementadas ---
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "good": return <CheckCircle className="w-4 h-4" />;
       case "warning": return <AlertTriangle className="w-4 h-4" />;
       case "danger": return <AlertCircle className="w-4 h-4" />;
-      default: return <AlertCircle className="w-4 h-4" />;
+      default: return null;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "good": return "bg-success text-white";
-      case "warning": return "bg-warning text-white";
-      case "danger": return "bg-danger text-white";
+      case "good": return "bg-success";
+      case "warning": return "bg-warning";
+      case "danger": return "bg-danger";
       default: return "bg-muted";
     }
   };
@@ -68,21 +110,20 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-subtle-gradient">
+    <div className="min-h-screen bg-white">
       <Navigation />
       
       <main className="container mx-auto px-4 pt-20 pb-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Solo Seguro</h1>
-          <h2 className="text-xl text-earth-gradient font-semibold mb-4">Zona 1</h2>
+          <h2 className="text-xl text-green-600 font-semibold mb-4">Zona 1</h2>
           <p className="text-muted-foreground">Monitoramento inteligente do solo</p>
         </div>
 
-        {/* Sensor Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {sensorData.map((sensor, index) => (
-            <Card key={index} className={`hover-lift ${getCardBorderColor(sensor.status)}`}>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {displayData.map((sensor, index) => (
+            // --- MUDANÇA 2: Estrutura do Card (JSX) Atualizada ---
+            <Card key={index} className={`transition-all duration-300 hover:shadow-lg ${getCardBorderColor(sensor.status)}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -93,7 +134,7 @@ const Dashboard = () => {
                   </div>
                   <Badge 
                     variant="secondary" 
-                    className={`${getStatusColor(sensor.status)}`}
+                    className={`${getStatusColor(sensor.status)} text-white`}
                   >
                     {getStatusIcon(sensor.status)}
                   </Badge>
@@ -113,24 +154,26 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Last Reading */}
         <Card className="mb-6">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Última leitura:</span>
-              <span className="font-semibold">22:00</span>
+              <span className="font-semibold">
+                {lastUpdated ? lastUpdated.toLocaleTimeString() : "Aguardando dados..."}
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Alert */}
-        <Alert className="border-danger bg-danger/5">
-          <AlertTriangle className="h-4 w-4 text-danger" />
-          <AlertDescription className="text-danger font-medium">
-            <strong>ATENÇÃO</strong><br />
-            Possível contaminação PMA
-          </AlertDescription>
-        </Alert>
+        {liveData && liveData.gas > 700 && (
+           <Alert className="border-danger bg-danger/5">
+            <AlertTriangle className="h-4 w-4 text-danger" />
+            <AlertDescription className="text-danger font-medium">
+              <strong>ATENÇÃO</strong><br />
+              Nível de gás crítico detectado!
+            </AlertDescription>
+          </Alert>
+        )}
       </main>
     </div>
   );

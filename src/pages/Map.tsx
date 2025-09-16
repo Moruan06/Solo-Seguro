@@ -1,23 +1,56 @@
+import React from "react";
 import { Navigation } from "@/components/ui/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 
 const Map = () => {
-  // Simulate field map data with alert points
-  const alertPoints = [
-    { id: 1, x: 25, y: 30, severity: "high" },
-    { id: 2, x: 60, y: 45, severity: "medium" },
-    { id: 3, x: 40, y: 70, severity: "high" },
-    { id: 4, x: 75, y: 25, severity: "low" },
-    { id: 5, x: 30, y: 55, severity: "high" },
-  ];
+  // Estado para placas conectadas (dinâmico)
+  const [placa, setPlaca] = React.useState({
+    id: 1,
+    x: 50,
+    y: 50,
+    temperatura: 0,
+    umidade: 0,
+    gas: 0
+  });
 
-  const getPointColor = (severity: string) => {
-    switch (severity) {
-      case "high": return "bg-danger";
-      case "medium": return "bg-warning";
-      case "low": return "bg-primary";
+  // Atualiza os valores do ponto do mapa com dados reais dos sensores
+  React.useEffect(() => {
+    const updateFromStorage = () => {
+      const sensorRaw = localStorage.getItem("sensorData");
+      if (sensorRaw) {
+        const sensor = JSON.parse(sensorRaw);
+        setPlaca(prev => ({
+          ...prev,
+          temperatura: sensor.temperature,
+          umidade: sensor.percent,
+          gas: sensor.gas
+        }));
+      }
+    };
+    updateFromStorage();
+    const interval = setInterval(updateFromStorage, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calcula status geral da placa pela média dos sensores
+  const getPlacaStatus = (placa: { id: number; x: number; y: number; temperatura: number; umidade: number; gas: number }) => {
+    // Normaliza os valores para 0-100
+    const tempScore = Math.min(Math.max((placa.temperatura - 15) * 5, 0), 100);
+    const umiScore = Math.min(Math.max(placa.umidade, 0), 100);
+    const gasScore = Math.min(Math.max((2500 - placa.gas) / 25, 0), 100);
+    const media = (tempScore + umiScore + gasScore) / 3;
+    if (media >= 70) return "good";
+    if (media >= 40) return "warning";
+    return "danger";
+  };
+
+  const getPointColor = (status: string) => {
+    switch (status) {
+      case "good": return "bg-success";
+      case "warning": return "bg-warning";
+      case "danger": return "bg-danger";
       default: return "bg-muted";
     }
   };
@@ -49,18 +82,17 @@ const Map = () => {
                   <rect width="100%" height="100%" fill="url(#grid)" />
                 </svg>
                 
-                {/* Alert points */}
-                {alertPoints.map((point) => (
-                  <div
-                    key={point.id}
-                    className={`absolute w-4 h-4 rounded-full ${getPointColor(point.severity)} border-2 border-white shadow-lg animate-pulse`}
-                    style={{
-                      left: `${point.x}%`,
-                      top: `${point.y}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                  />
-                ))}
+                {/* Ponto do mapa com dados reais dos sensores */}
+                <div
+                  key={placa.id}
+                  className={`absolute w-4 h-4 rounded-full ${getPointColor(getPlacaStatus(placa))} border-2 border-white shadow-lg animate-pulse`}
+                  style={{
+                    left: `${placa.x}%`,
+                    top: `${placa.y}%`,
+                    transform: 'translate(-50%, -50%)'
+                  }}
+                  title={`Placa ${placa.id}\nTemp: ${placa.temperatura}°C\nUmid: ${placa.umidade}%\nGás: ${placa.gas}`}
+                />
               </div>
             </div>
           </CardContent>

@@ -28,6 +28,8 @@ const Analytics = () => {
           ...prev.slice(-49),
           { time, temperature: data.temperature, percent: data.percent, gas: data.gas }
         ]);
+        // Salva os dados mais recentes no localStorage para uso no mapa
+        localStorage.setItem("sensorData", JSON.stringify({ temperature: data.temperature, percent: data.percent, gas: data.gas }));
         setLastUpdated(time);
       } catch (err) {
         console.error('Erro ao buscar dados do sensor:', err);

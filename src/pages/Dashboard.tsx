@@ -72,10 +72,10 @@ const Dashboard = () => {
       if (gasValue <= 700) {
         return {
           title: "Nível de Gás",
-          value: "Bom",
-          status: "good",
+          value: "Ruim",
+          status: "danger",
           sensor: `Valor Analógico: ${gasValue}`,
-          color: "text-success",
+          color: "text-danger",
           icon: <Wind className="w-6 h-6" />,
         };
       } else if (gasValue <= 1200) {
@@ -90,10 +90,10 @@ const Dashboard = () => {
       } else if (gasValue <= 2000) {
         return {
           title: "Nível de Gás",
-          value: "Ruim",
-          status: "danger",
+          value: "Bom",
+          status: "good",
           sensor: `Valor Analógico: ${gasValue}`,
-          color: "text-danger",
+          color: "text-success",
           icon: <Wind className="w-6 h-6" />,
         };
       } else { // Acima de 2000

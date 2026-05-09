@@ -197,7 +197,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {liveData && liveData.gas > 700 && (
+        {liveData && liveData.gas < 700 && (
            <Alert className="border-danger bg-danger/5">
             <AlertTriangle className="h-4 w-4 text-danger" />
             <AlertDescription className="text-danger font-medium">

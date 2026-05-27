@@ -1,38 +1,20 @@
 import React from "react";
+import { useSensors } from "@/contexts/SensorContext";
 import { Navigation } from "@/components/ui/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 
 const Map = () => {
-  // Estado para placas conectadas (dinâmico)
-  const [placa, setPlaca] = React.useState({
+  const { latest } = useSensors();
+  const placa = {
     id: 1,
     x: 50,
     y: 50,
-    temperatura: 0,
-    umidade: 0,
-    gas: 0
-  });
-
-  // Atualiza os valores do ponto do mapa com dados reais dos sensores
-  React.useEffect(() => {
-    const updateFromStorage = () => {
-      const sensorRaw = localStorage.getItem("sensorData");
-      if (sensorRaw) {
-        const sensor = JSON.parse(sensorRaw);
-        setPlaca(prev => ({
-          ...prev,
-          temperatura: sensor.temperature,
-          umidade: sensor.percent,
-          gas: sensor.gas
-        }));
-      }
-    };
-    updateFromStorage();
-    const interval = setInterval(updateFromStorage, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    temperatura: latest.temperature ?? 0,
+    umidade: latest.percent ?? 0,
+    gas: latest.gas ?? 0,
+  };
 
   // Calcula status geral da placa pela média dos sensores
   const getPlacaStatus = (placa: { id: number; x: number; y: number; temperatura: number; umidade: number; gas: number }) => {

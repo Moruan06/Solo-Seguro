@@ -1,306 +1,195 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Navigation } from "@/components/ui/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Thermometer } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { Button } from "@/components/ui/button";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
+import { useSensors } from "@/contexts/SensorContext";
+import { getHistoricoSensor, getAgregado, PontoHistorico, Agregado } from "@/lib/api";
+
+type MetricKey = "temperature" | "percent" | "gas";
+
+interface MetricCfg {
+  key: MetricKey;
+  titulo: string;
+  unidade: string;
+  cor: string;
+}
+
+const METRICAS: MetricCfg[] = [
+  { key: "percent", titulo: "Umidade do Solo", unidade: "%", cor: "hsl(var(--primary))" },
+  { key: "gas", titulo: "Gás", unidade: "ppm", cor: "hsl(var(--danger))" },
+  { key: "temperature", titulo: "Temperatura", unidade: "°C", cor: "hsl(var(--success))" },
+];
+
+const RANGES = [
+  { label: "1h", ms: 3600e3 },
+  { label: "6h", ms: 6 * 3600e3 },
+  { label: "24h", ms: 24 * 3600e3 },
+  { label: "7d", ms: 7 * 24 * 3600e3 },
+];
+
+interface MetricData {
+  serie: PontoHistorico[];
+  agg: Agregado | null;
+}
+
+const VAZIO: Record<MetricKey, MetricData> = {
+  temperature: { serie: [], agg: null },
+  percent: { serie: [], agg: null },
+  gas: { serie: [], agg: null },
+};
 
 const Analytics = () => {
-  type SensorData = {
-    time: string;
-    temperature: number;
-    percent: number;
-    gas: number;
-  };
-  const [sensorHistory, setSensorHistory] = useState<SensorData[]>([]);
-  const [lastUpdated, setLastUpdated] = useState("");
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { sensorIds, connected } = useSensors();
+  const [rangeMs, setRangeMs] = useState<number>(24 * 3600e3);
+  const [dados, setDados] = useState<Record<MetricKey, MetricData>>(VAZIO);
+  const [carregando, setCarregando] = useState(false);
+  const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+
+  const carregar = useCallback(async () => {
+    const fim = new Date();
+    const inicio = new Date(fim.getTime() - rangeMs);
+    const fimIso = fim.toISOString();
+    const inicioIso = inicio.toISOString();
+
+    setCarregando(true);
+    try {
+      const entries = await Promise.all(
+        METRICAS.map(async (m) => {
+          const sid = sensorIds[m.key];
+          if (!sid) return [m.key, { serie: [], agg: null }] as const;
+          const [serie, agg] = await Promise.all([
+            getHistoricoSensor(sid, inicioIso, fimIso).catch(() => [] as PontoHistorico[]),
+            getAgregado(sid, inicioIso, fimIso).catch(() => null),
+          ]);
+          return [m.key, { serie, agg }] as const;
+        }),
+      );
+      setDados(Object.fromEntries(entries) as Record<MetricKey, MetricData>);
+      setAtualizadoEm(new Date());
+    } finally {
+      setCarregando(false);
+    }
+  }, [rangeMs, sensorIds]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch("http://192.168.4.1/data");
-        if (!response.ok) return;
-        const data = await response.json();
-        const now = new Date();
-        const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setSensorHistory(prev => [
-          ...prev.slice(-49),
-          { time, temperature: data.temperature, percent: data.percent, gas: data.gas }
-        ]);
-        // Salva os dados mais recentes no localStorage para uso no mapa
-        localStorage.setItem("sensorData", JSON.stringify({ temperature: data.temperature, percent: data.percent, gas: data.gas }));
-        setLastUpdated(time);
-      } catch (err) {
-        console.error('Erro ao buscar dados do sensor:', err);
-      }
-    };
-    fetchData();
-    intervalRef.current = setInterval(fetchData, 5000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
-
+    carregar();
+    const id = setInterval(carregar, 15000); // auto-refresh a cada 15s
+    return () => clearInterval(id);
+  }, [carregar]);
 
   return (
     <div className="min-h-screen bg-subtle-gradient">
       <Navigation />
-      
+
       <main className="container mx-auto px-4 pt-20 pb-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Solo Seguro</h1>
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Thermometer className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl text-earth-gradient font-semibold">Temperatura do solo</h2>
-              <p className="text-sm text-muted-foreground">Sensor: DTH22</p>
-            </div>
+        {/* Cabeçalho + controles */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-1">Análises</h1>
+            <p className="text-sm text-muted-foreground">
+              Histórico persistido no banco
+              {atualizadoEm && ` · atualizado às ${atualizadoEm.toLocaleTimeString()}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {RANGES.map((r) => (
+              <Button
+                key={r.label}
+                size="sm"
+                variant={r.ms === rangeMs ? "default" : "outline"}
+                onClick={() => setRangeMs(r.ms)}
+              >
+                {r.label}
+              </Button>
+            ))}
+            <Button size="sm" variant="ghost" onClick={carregar} disabled={carregando}>
+              {carregando ? "Atualizando..." : "Atualizar"}
+            </Button>
           </div>
         </div>
 
-        {/* Gráfico de Temperatura */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Temperatura
-              <Badge variant="secondary" className="bg-success text-white">
-                {sensorHistory.length > 0 ? "Online" : "Aguardando..."}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sensorHistory}>
-                  <XAxis 
-                    dataKey="time" 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs"
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs"
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="temperature" 
-                    stroke="hsl(var(--success))" 
-                    strokeWidth={3}
-                    dot={{ fill: 'hsl(var(--success))', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: 'hsl(var(--success))', strokeWidth: 2 }}
-                    name="Temperatura"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 text-right text-xs text-muted-foreground">
-              Última leitura: {lastUpdated || "Aguardando..."}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Um card por métrica */}
+        {METRICAS.map((m) => {
+          const d = dados[m.key];
+          const semId = !sensorIds[m.key];
+          return (
+            <Card key={m.key} className="mb-8">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>
+                    {m.titulo}{" "}
+                    <span className="text-sm text-muted-foreground">({m.unidade})</span>
+                  </span>
+                  <Badge variant="secondary" className={connected ? "bg-success text-white" : "bg-muted"}>
+                    {connected ? "ao vivo" : "histórico"}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {semId ? (
+                  <p className="text-sm text-muted-foreground py-10 text-center">
+                    Sensor ainda não identificado — aguardando a primeira leitura para carregar o histórico.
+                  </p>
+                ) : d.serie.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-10 text-center">
+                    Sem leituras nesse período.
+                  </p>
+                ) : (
+                  <>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={d.serie}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis dataKey="time" axisLine={false} tickLine={false} className="text-xs" minTickGap={32} />
+                          <YAxis axisLine={false} tickLine={false} className="text-xs" width={40} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="valor"
+                            stroke={m.cor}
+                            strokeWidth={2}
+                            dot={false}
+                            name={m.titulo}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
 
-        {/* Gráfico de Umidade */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Umidade
-              <Badge variant="secondary" className="bg-primary text-white">
-                {sensorHistory.length > 0 ? "Online" : "Aguardando..."}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sensorHistory}>
-                  <XAxis 
-                    dataKey="time" 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs"
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs"
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="percent" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={3}
-                    dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: 'hsl(var(--primary))', strokeWidth: 2 }}
-                    name="Umidade"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 text-right text-xs text-muted-foreground">
-              Última leitura: {lastUpdated || "Aguardando..."}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Gráfico de Gás */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Gás
-              <Badge variant="secondary" className="bg-danger text-white">
-                {sensorHistory.length > 0 ? "Online" : "Aguardando..."}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sensorHistory}>
-                  <XAxis 
-                    dataKey="time" 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs"
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs"
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="gas" 
-                    stroke="hsl(var(--danger))" 
-                    strokeWidth={3}
-                    dot={{ fill: 'hsl(var(--danger))', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: 'hsl(var(--danger))', strokeWidth: 2 }}
-                    name="Gás"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 text-right text-xs text-muted-foreground">
-              Última leitura: {lastUpdated || "Aguardando..."}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Cards interativos para cada sensor */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Temperatura */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-success">
-                  {sensorHistory.length > 0 ? `${(
-                    sensorHistory.reduce((acc, cur) => acc + cur.temperature, 0) / sensorHistory.length
-                  ).toFixed(1)}°` : '--'}
-                </div>
-                <div className="text-sm text-muted-foreground">Média</div>
-                <div className="text-sm text-muted-foreground mt-2">
-                  Variação: {sensorHistory.length > 0 ? `${
-                    Math.min(...sensorHistory.map(d => d.temperature))
-                  }° - ${
-                    Math.max(...sensorHistory.map(d => d.temperature))
-                  }°` : '--'}
-                </div>
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Última leitura:</span>
-                    <span className="font-semibold">
-                      {sensorHistory.length > 0 ? `${sensorHistory[sensorHistory.length-1].temperature}°` : '--'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          {/* Umidade */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">
-                  {sensorHistory.length > 0 ? `${(
-                    sensorHistory.reduce((acc, cur) => acc + cur.percent, 0) / sensorHistory.length
-                  ).toFixed(1)}%` : '--'}
-                </div>
-                <div className="text-sm text-muted-foreground">Média</div>
-                <div className="text-sm text-muted-foreground mt-2">
-                  Variação: {sensorHistory.length > 0 ? `${
-                    Math.min(...sensorHistory.map(d => d.percent))
-                  }% - ${
-                    Math.max(...sensorHistory.map(d => d.percent))
-                  }%` : '--'}
-                </div>
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Última leitura:</span>
-                    <span className="font-semibold">
-                      {sensorHistory.length > 0 ? `${sensorHistory[sensorHistory.length-1].percent}%` : '--'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          {/* Gás */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-danger">
-                  {sensorHistory.length > 0 ? `${(
-                    sensorHistory.reduce((acc, cur) => acc + cur.gas, 0) / sensorHistory.length
-                  ).toFixed(0)}` : '--'}
-                </div>
-                <div className="text-sm text-muted-foreground">Média</div>
-                <div className="text-sm text-muted-foreground mt-2">
-                  Variação: {sensorHistory.length > 0 ? `${
-                    Math.min(...sensorHistory.map(d => d.gas))
-                  } - ${
-                    Math.max(...sensorHistory.map(d => d.gas))
-                  }` : '--'}
-                </div>
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Última leitura:</span>
-                    <span className="font-semibold">
-                      {sensorHistory.length > 0 ? sensorHistory[sensorHistory.length-1].gas : '--'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+                    {d.agg && (
+                      <div className="grid grid-cols-4 gap-4 mt-4 text-center">
+                        <Resumo rotulo="Média" valor={d.agg.media} unidade={m.unidade} />
+                        <Resumo rotulo="Mínimo" valor={d.agg.minimo} unidade={m.unidade} />
+                        <Resumo rotulo="Máximo" valor={d.agg.maximo} unidade={m.unidade} />
+                        <Resumo rotulo="Leituras" valor={d.agg.total} />
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </main>
     </div>
   );
 };
+
+function Resumo({ rotulo, valor, unidade }: { rotulo: string; valor: number; unidade?: string }) {
+  const texto = unidade ? `${valor.toFixed(1)}${unidade}` : `${valor}`;
+  return (
+    <div className="pt-4 border-t">
+      <div className="text-xl font-bold text-foreground">{texto}</div>
+      <div className="text-xs text-muted-foreground">{rotulo}</div>
+    </div>
+  );
+}
 
 export default Analytics;

@@ -1,6 +1,6 @@
 // src/pages/Dashboard.tsx
 
-import { useState, useEffect } from "react";
+import { useSensors } from "@/contexts/SensorContext";
 import { Navigation } from "@/components/ui/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,29 +14,15 @@ type SensorData = {
 };
 
 const Dashboard = () => {
-  const [liveData, setLiveData] = useState<SensorData | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch("http://192.168.4.1/data");
-        if (!response.ok) {
-          throw new Error("Falha na rede ou o dispositivo não respondeu");
-        }
-        const data: SensorData = await response.json();
-        setLiveData(data);
-        setLastUpdated(new Date());
-      } catch (error) {
-        console.error("Erro ao buscar dados do sensor:", error);
+  const { latest, lastEventAt } = useSensors();
+  const liveData: SensorData | null = lastEventAt
+    ? {
+        temperature: latest.temperature ?? 0,
+        percent: latest.percent ?? 0,
+        gas: latest.gas ?? 0,
       }
-    };
-
-    fetchData();
-    const intervalId = setInterval(fetchData, 2000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+    : null;
+  const lastUpdated = lastEventAt;
 
   const getDisplayData = () => {
     if (!liveData) {

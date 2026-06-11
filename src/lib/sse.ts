@@ -2,7 +2,7 @@
 // O EventSource nativo do navegador NÃO envia headers, então fazemos o
 // streaming via fetch + ReadableStream, parseando os frames "event/data".
 
-import { API_URL } from "./api";
+import { API_URL, SESSION_EXPIRED_EVENT } from "./api";
 
 export interface LeituraEvent {
   sensorId: string;
@@ -34,6 +34,11 @@ export function subscribeLeituras(
           headers: { Authorization: `Bearer ${token}`, Accept: "text/event-stream" },
           signal: controller.signal,
         });
+        if (res.status === 401) {
+          stopped = true;
+          window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+          break;
+        }
         if (!res.ok || !res.body) throw new Error(`SSE HTTP ${res.status}`);
 
         onStatus?.(true);

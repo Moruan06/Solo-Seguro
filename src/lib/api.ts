@@ -78,16 +78,29 @@ export async function logout(): Promise<void> {
   clearSession();
 }
 
+// Evento customizado disparado quando o backend rejeita o token (401).
+// O AuthContext escuta esse evento para forçar logout automático.
+export const SESSION_EXPIRED_EVENT = "ss:session-expired";
+
+function fireSessionExpired() {
+  clearSession();
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+}
+
 // Fetch autenticado para chamadas REST futuras (histórico, gráficos agregados, etc.)
 export async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken();
-  return fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...(init.headers ?? {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  if (res.status === 401) {
+    fireSessionExpired();
+  }
+  return res;
 }
 
 // ===== Leituras: histórico bruto e agregado (para gráficos) =====

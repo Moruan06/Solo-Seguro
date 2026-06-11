@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import * as api from "@/lib/api";
 
 interface AuthContextValue {
@@ -21,11 +21,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ usuarioId: d.usuarioId, nome: d.nome, email: d.email, cargo: d.cargo });
   };
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await api.logout();
     setToken(null);
     setUser(null);
-  };
+  }, []);
+
+  // Logout automático quando o token expira (401 do backend)
+  useEffect(() => {
+    const handleExpired = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener(api.SESSION_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(api.SESSION_EXPIRED_EVENT, handleExpired);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, signIn, signOut }}>

@@ -49,13 +49,29 @@ const SENSOR_IDS_INICIAIS: SensorIdMap = {
   gas: import.meta.env.VITE_SENSOR_GAS as string | undefined,
 };
 
+const CACHE_KEY = "ss_sensor_cache";
+
+function loadCachedSnapshot(): SensorSnapshot {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) return JSON.parse(raw) as SensorSnapshot;
+  } catch { /* ignora cache corrompido */ }
+  return { temperature: null, percent: null, gas: null };
+}
+
+function saveCachedSnapshot(s: SensorSnapshot) {
+  localStorage.setItem(CACHE_KEY, JSON.stringify(s));
+}
+
 export function SensorProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
-  const [latest, setLatest] = useState<SensorSnapshot>({ temperature: null, percent: null, gas: null });
+  const cached = loadCachedSnapshot();
+  const hasCachedData = cached.temperature !== null || cached.percent !== null || cached.gas !== null;
+  const [latest, setLatest] = useState<SensorSnapshot>(cached);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [sensorIds, setSensorIds] = useState<SensorIdMap>(SENSOR_IDS_INICIAIS);
   const [connected, setConnected] = useState(false);
-  const [lastEventAt, setLastEventAt] = useState<Date | null>(null);
+  const [lastEventAt, setLastEventAt] = useState<Date | null>(hasCachedData ? new Date() : null);
   const latestRef = useRef<SensorSnapshot>(latest);
   latestRef.current = latest;
 
@@ -77,6 +93,7 @@ export function SensorProvider({ children }: { children: ReactNode }) {
         const next: SensorSnapshot = { ...latestRef.current, [key]: e.valor };
         latestRef.current = next;
         setLatest(next);
+        saveCachedSnapshot(next);
 
         const time = new Date(e.timestamp).toLocaleTimeString([], {
           hour: "2-digit",

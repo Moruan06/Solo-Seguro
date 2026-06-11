@@ -1,115 +1,208 @@
-import React from "react";
+// src/pages/Map.tsx
+// Visão de status do talhão. Hoje há uma única placa de sensores e não há
+// coordenadas reais — então não fingimos um mapa geográfico: representamos a
+// zona monitorada e seu estado, derivado SEMPRE do pior sensor (nunca da
+// média, que poderia mascarar um perigo isolado).
+
 import { useSensors } from "@/contexts/SensorContext";
 import { Navigation } from "@/components/ui/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import {
+  Thermometer,
+  Droplet,
+  Wind,
+  AlertTriangle,
+  CheckCircle,
+  AlertCircle,
+  type LucideIcon,
+} from "lucide-react";
+
+type Status = "good" | "warning" | "danger";
+
+// Mesma régua de avaliação usada no Dashboard, para coerência entre telas.
+interface SensorRead {
+  key: "temperature" | "percent" | "gas";
+  label: string;
+  icon: LucideIcon;
+  format: (v: number) => string;
+  evaluate: (v: number) => Status;
+}
+
+const SENSORS: SensorRead[] = [
+  {
+    key: "temperature",
+    label: "Temperatura",
+    icon: Thermometer,
+    format: (v) => `${v.toFixed(1)}°C`,
+    evaluate: (v) => (v > 30 ? "danger" : v < 15 ? "warning" : "good"),
+  },
+  {
+    key: "percent",
+    label: "Umidade",
+    icon: Droplet,
+    format: (v) => `${v.toFixed(0)}%`,
+    evaluate: (v) => (v < 30 ? "danger" : v > 70 ? "good" : "warning"),
+  },
+  {
+    // MQ-135: valor BAIXO = gás detectado (perigo).
+    key: "gas",
+    label: "Gás",
+    icon: Wind,
+    format: (v) => `${v}`,
+    evaluate: (v) => (v >= 2500 ? "good" : v >= 1500 ? "warning" : "danger"),
+  },
+];
+
+const STATUS_META: Record<
+  Status,
+  { titulo: string; chip: string; dot: string; text: string; ring: string; field: string; icon: LucideIcon }
+> = {
+  good: {
+    titulo: "Tudo certo no talhão",
+    chip: "bg-success",
+    dot: "bg-success",
+    text: "text-success",
+    ring: "ring-success/40",
+    field: "from-green-300 to-green-500",
+    icon: CheckCircle,
+  },
+  warning: {
+    titulo: "Requer atenção",
+    chip: "bg-warning",
+    dot: "bg-warning",
+    text: "text-warning",
+    ring: "ring-warning/50",
+    field: "from-amber-200 to-green-400",
+    icon: AlertTriangle,
+  },
+  danger: {
+    titulo: "Perigo detectado",
+    chip: "bg-danger",
+    dot: "bg-danger",
+    text: "text-danger",
+    ring: "ring-danger/60",
+    field: "from-red-300 to-amber-300",
+    icon: AlertCircle,
+  },
+};
+
+const SEVERIDADE: Record<Status, number> = { good: 0, warning: 1, danger: 2 };
 
 const Map = () => {
-  const { latest } = useSensors();
-  const placa = {
-    id: 1,
-    x: 50,
-    y: 50,
-    temperatura: latest.temperature ?? 0,
-    umidade: latest.percent ?? 0,
-    gas: latest.gas ?? 0,
-  };
+  const { latest, lastEventAt } = useSensors();
+  const semDados = lastEventAt === null;
 
-  // Calcula status geral da placa pela média dos sensores
-  const getPlacaStatus = (placa: { id: number; x: number; y: number; temperatura: number; umidade: number; gas: number }) => {
-    // Normaliza os valores para 0-100
-    const tempScore = Math.min(Math.max((placa.temperatura - 15) * 5, 0), 100);
-    const umiScore = Math.min(Math.max(placa.umidade, 0), 100);
-    const gasScore = Math.min(Math.max((2500 - placa.gas) / 25, 0), 100);
-    const media = (tempScore + umiScore + gasScore) / 3;
-    if (media >= 70) return "good";
-    if (media >= 40) return "warning";
-    return "danger";
-  };
-
-  const getPointColor = (status: string) => {
-    switch (status) {
-      case "good": return "bg-success";
-      case "warning": return "bg-warning";
-      case "danger": return "bg-danger";
-      default: return "bg-muted";
-    }
-  };
+  // Avalia cada sensor e deriva o status geral pelo PIOR deles.
+  const leituras = SENSORS.map((s) => {
+    const valor = latest[s.key] ?? 0;
+    return { ...s, valor, status: s.evaluate(valor), formatted: s.format(valor) };
+  });
+  const statusGeral: Status = leituras.reduce<Status>(
+    (pior, l) => (SEVERIDADE[l.status] > SEVERIDADE[pior] ? l.status : pior),
+    "good",
+  );
+  const meta = STATUS_META[statusGeral];
+  const StatusIcon = meta.icon;
+  const emPerigo = leituras.filter((l) => l.status === "danger");
 
   return (
     <div className="min-h-screen bg-subtle-gradient">
       <Navigation />
-      
-      <main className="container mx-auto px-4 pt-20 pb-8">
+
+      <main className="container mx-auto px-4 pt-20 pb-8 max-w-3xl">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Solo Seguro</h1>
-          <h2 className="text-xl text-earth-gradient font-semibold">Trigo</h2>
+        <div className="mb-6 text-center">
+          <h1 className="text-3xl font-bold text-foreground mb-1">Solo Seguro</h1>
+          <h2 className="text-xl text-earth-gradient font-semibold">Talhão · Trigo</h2>
         </div>
 
-        {/* Map Container */}
-        <Card className="mb-8 overflow-hidden">
+        {/* Banner de status geral — só pulsa quando há perigo. */}
+        <div
+          className={`mb-6 flex items-center gap-4 rounded-xl border p-5 ${meta.text} ${
+            statusGeral === "danger" ? "border-danger bg-danger/5 animate-pulse" : "border-border bg-card"
+          }`}
+        >
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${meta.chip} text-white`}>
+            <StatusIcon className="h-7 w-7" />
+          </div>
+          <div>
+            <div className={`text-xl font-bold ${meta.text}`}>
+              {semDados ? "Aguardando leituras…" : meta.titulo}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {semDados
+                ? "Nenhuma leitura recebida ainda."
+                : `Status geral pelo pior sensor · atualizado às ${lastEventAt!.toLocaleTimeString()}`}
+            </p>
+          </div>
+        </div>
+
+        {/* Ilustração honesta da zona: representa o talhão, colorido pelo status. */}
+        <Card className="mb-6 overflow-hidden">
           <CardContent className="p-0">
-            <div className="relative bg-gradient-to-br from-green-200 to-green-400 h-96 w-full">
-              {/* Field representation */}
-              <div className="absolute inset-4 bg-gradient-to-br from-green-300 to-green-500 rounded-lg">
-                {/* Grid lines to simulate field sections */}
-                <svg className="absolute inset-0 w-full h-full opacity-30">
-                  <defs>
-                    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
-                      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(0,0,0,0.1)" strokeWidth="1"/>
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#grid)" />
-                </svg>
-                
-                {/* Ponto do mapa com dados reais dos sensores */}
-                <div
-                  key={placa.id}
-                  className={`absolute w-4 h-4 rounded-full ${getPointColor(getPlacaStatus(placa))} border-2 border-white shadow-lg animate-pulse`}
-                  style={{
-                    left: `${placa.x}%`,
-                    top: `${placa.y}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}
-                  title={`Placa ${placa.id}\nTemp: ${placa.temperatura}°C\nUmid: ${placa.umidade}%\nGás: ${placa.gas}`}
-                />
+            <div
+              className={`relative h-64 w-full bg-gradient-to-br ${meta.field} flex items-center justify-center transition-colors duration-500`}
+            >
+              {/* Textura de campo (decorativa, não representa coordenadas). */}
+              <svg className="absolute inset-0 w-full h-full opacity-25" aria-hidden>
+                <defs>
+                  <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+                    <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+              </svg>
+
+              {/* A zona inteira é a entidade monitorada (uma placa). */}
+              <div
+                className={`relative z-10 flex flex-col items-center gap-2 rounded-2xl bg-card/90 px-8 py-6 shadow-lg ring-4 ${meta.ring} ${
+                  statusGeral === "danger" ? "animate-pulse" : ""
+                }`}
+              >
+                <span className={`flex items-center gap-2 font-semibold ${meta.text}`}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
+                  Placa 1
+                </span>
+                <div className="flex gap-4">
+                  {leituras.map((l) => {
+                    const Icon = l.icon;
+                    return (
+                      <div key={l.key} className="flex flex-col items-center">
+                        <Icon className={`h-5 w-5 ${STATUS_META[l.status].text}`} />
+                        <span className="mt-1 text-sm font-bold text-foreground">
+                          {semDados ? "—" : l.formatted}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">{l.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Alert Section */}
-        <div className="flex justify-center">
-          <div className="w-32 h-32 bg-danger rounded-full flex items-center justify-center mb-4 shadow-lg">
-            <AlertTriangle className="w-16 h-16 text-white" />
-          </div>
-        </div>
-        
-        <Alert className="border-danger bg-danger/5 text-center">
-          <AlertDescription className="text-danger font-bold text-lg">
-            ATENÇÃO
-          </AlertDescription>
-        </Alert>
+        {/* Alerta condicional — aparece SOMENTE quando há sensor em perigo. */}
+        {emPerigo.length > 0 && (
+          <Alert className="mb-6 border-danger bg-danger/5">
+            <AlertTriangle className="h-4 w-4 text-danger" />
+            <AlertDescription className="text-danger font-medium">
+              <strong>ATENÇÃO</strong>
+              <br />
+              {emPerigo.map((l) => `${l.label}: ${l.formatted}`).join(" · ")} — verificação imediata recomendada.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Legend */}
-        <Card className="mt-6">
+        {/* Legenda — cores idênticas às usadas no banner e na zona. */}
+        <Card>
           <CardContent className="pt-6">
-            <h3 className="font-semibold mb-4 text-center">Legenda</h3>
-            <div className="flex justify-center space-x-6">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded-full bg-danger"></div>
-                <span className="text-sm">Alto risco</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded-full bg-warning"></div>
-                <span className="text-sm">Médio risco</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded-full bg-primary"></div>
-                <span className="text-sm">Baixo risco</span>
-              </div>
+            <h3 className="mb-4 text-center font-semibold">Legenda</h3>
+            <div className="flex justify-center gap-6">
+              <LegendaItem cor="bg-danger" rotulo="Alto risco" />
+              <LegendaItem cor="bg-warning" rotulo="Médio risco" />
+              <LegendaItem cor="bg-success" rotulo="Baixo risco" />
             </div>
           </CardContent>
         </Card>
@@ -117,5 +210,14 @@ const Map = () => {
     </div>
   );
 };
+
+function LegendaItem({ cor, rotulo }: { cor: string; rotulo: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`h-3 w-3 rounded-full ${cor}`} />
+      <span className="text-sm">{rotulo}</span>
+    </div>
+  );
+}
 
 export default Map;

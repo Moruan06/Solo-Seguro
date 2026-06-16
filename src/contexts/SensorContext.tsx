@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { subscribeLeituras, LeituraEvent } from "@/lib/sse";
 import { useAuth } from "./AuthContext";
 
-// Mantém as chaves usadas pelas telas existentes: temperature / percent / gas
 export interface SensorSnapshot {
   temperature: number | null;
   percent: number | null;
   gas: number | null;
+  ph: number | null;
 }
 
 export interface HistoryPoint {
@@ -14,12 +14,14 @@ export interface HistoryPoint {
   temperature: number;
   percent: number;
   gas: number;
+  ph: number;
 }
 
 export type SensorIdMap = {
   temperature?: string;
   percent?: string;
   gas?: string;
+  ph?: string;
 };
 
 interface SensorContextValue {
@@ -38,6 +40,7 @@ function tipoToKey(tipo: string): keyof SensorSnapshot | null {
   if (t.includes("temperatura")) return "temperature";
   if (t.includes("umidade")) return "percent";
   if (t.includes("gás") || t.includes("gas")) return "gas";
+  if (t.includes("ph")) return "ph";
   return null;
 }
 
@@ -47,6 +50,7 @@ const SENSOR_IDS_INICIAIS: SensorIdMap = {
   temperature: import.meta.env.VITE_SENSOR_TEMP as string | undefined,
   percent: import.meta.env.VITE_SENSOR_UMID as string | undefined,
   gas: import.meta.env.VITE_SENSOR_GAS as string | undefined,
+  ph: import.meta.env.VITE_SENSOR_PH as string | undefined,
 };
 
 const CACHE_KEY = "ss_sensor_cache";
@@ -56,7 +60,7 @@ function loadCachedSnapshot(): SensorSnapshot {
     const raw = localStorage.getItem(CACHE_KEY);
     if (raw) return JSON.parse(raw) as SensorSnapshot;
   } catch { /* ignora cache corrompido */ }
-  return { temperature: null, percent: null, gas: null };
+  return { temperature: null, percent: null, gas: null, ph: null };
 }
 
 function saveCachedSnapshot(s: SensorSnapshot) {
@@ -66,7 +70,7 @@ function saveCachedSnapshot(s: SensorSnapshot) {
 export function SensorProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const cached = loadCachedSnapshot();
-  const hasCachedData = cached.temperature !== null || cached.percent !== null || cached.gas !== null;
+  const hasCachedData = cached.temperature !== null || cached.percent !== null || cached.gas !== null || cached.ph !== null;
   const [latest, setLatest] = useState<SensorSnapshot>(cached);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [sensorIds, setSensorIds] = useState<SensorIdMap>(SENSOR_IDS_INICIAIS);
@@ -107,6 +111,7 @@ export function SensorProvider({ children }: { children: ReactNode }) {
             temperature: next.temperature ?? 0,
             percent: next.percent ?? 0,
             gas: next.gas ?? 0,
+            ph: next.ph ?? 0,
           },
         ]);
       },

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LineChart, Line, YAxis, ResponsiveContainer } from "recharts";
-import { Thermometer, Droplet, Wind, AlertTriangle, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Thermometer, Droplet, Wind, FlaskConical, AlertTriangle, CheckCircle, AlertCircle, Clock } from "lucide-react";
 
 type Status = "good" | "warning" | "danger";
 
@@ -63,6 +63,22 @@ const SENSOR_CONFIGS: SensorConfig[] = [
         : v >= 1500
         ? { status: "warning", label: "Moderado" }
         : { status: "danger", label: "Perigo" },
+  },
+  {
+    key: "ph",
+    title: "pH do Solo",
+    icon: <FlaskConical className="w-6 h-6" />,
+    format: (v) => v.toFixed(2),
+    evaluate: (v) =>
+      v < 5.5
+        ? { status: "danger", label: "Ácido" }
+        : v < 6.5
+        ? { status: "warning", label: "Lev. Ácido" }
+        : v <= 7.5
+        ? { status: "good", label: "Neutro" }
+        : v <= 8.5
+        ? { status: "warning", label: "Lev. Alcalino" }
+        : { status: "danger", label: "Alcalino" },
   },
 ];
 
@@ -154,7 +170,7 @@ const Dashboard = () => {
           </Alert>
         )}
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {cards
             ? cards.map((card) => {
                 const meta = STATUS_META[card.status];

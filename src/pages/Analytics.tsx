@@ -32,7 +32,7 @@ interface MetricCfg {
 
 const METRICAS: MetricCfg[] = [
   { key: "percent", titulo: "Umidade do Solo", unidade: "%", cor: "hsl(var(--primary))" },
-  { key: "gas", titulo: "Gás", unidade: "ppm", cor: "hsl(var(--danger))" },
+  { key: "gas", titulo: "Gás", unidade: "raw", cor: "hsl(var(--danger))" },
   { key: "temperature", titulo: "Temperatura", unidade: "°C", cor: "hsl(var(--success))" },
   { key: "ph", titulo: "pH do Solo", unidade: "pH", cor: "hsl(var(--warning))" },
 ];

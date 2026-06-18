@@ -21,7 +21,7 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianG
 import { useSensors } from "@/contexts/SensorContext";
 import { getHistoricoSensor, getAgregado, PontoHistorico, Agregado } from "@/lib/api";
 
-type MetricKey = "temperature" | "percent" | "gas";
+type MetricKey = "temperature" | "percent" | "gas" | "ph";
 
 interface MetricCfg {
   key: MetricKey;
@@ -32,8 +32,9 @@ interface MetricCfg {
 
 const METRICAS: MetricCfg[] = [
   { key: "percent", titulo: "Umidade do Solo", unidade: "%", cor: "hsl(var(--primary))" },
-  { key: "gas", titulo: "Gás", unidade: "ppm", cor: "hsl(var(--danger))" },
+  { key: "gas", titulo: "Gás", unidade: "raw", cor: "hsl(var(--danger))" },
   { key: "temperature", titulo: "Temperatura", unidade: "°C", cor: "hsl(var(--success))" },
+  { key: "ph", titulo: "pH do Solo", unidade: "pH", cor: "hsl(var(--warning))" },
 ];
 
 // Presets de janela móvel (sempre relativos a "agora").
@@ -54,6 +55,7 @@ const VAZIO: Record<MetricKey, MetricData> = {
   temperature: { serie: [], agg: null },
   percent: { serie: [], agg: null },
   gas: { serie: [], agg: null },
+  ph: { serie: [], agg: null },
 };
 
 // Resolve a janela [início, fim] a partir do preset selecionado ou do
@@ -215,44 +217,46 @@ const Analytics = () => {
             </CardContent>
           </Card>
         ) : (
-          METRICAS.map((m) => {
+          <div className="grid md:grid-cols-2 gap-6">
+          {METRICAS.map((m) => {
           const d = dados[m.key];
           const semId = !sensorIds[m.key];
           return (
-            <Card key={m.key} className="mb-8">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+            <Card key={m.key}>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between text-base">
                   <span>
                     {m.titulo}{" "}
-                    <span className="text-sm text-muted-foreground">({m.unidade})</span>
+                    <span className="text-xs text-muted-foreground">({m.unidade})</span>
                   </span>
-                  <Badge variant="secondary" className={connected ? "bg-success text-white" : "bg-muted"}>
+                  <Badge variant="secondary" className={`text-xs ${connected ? "bg-success text-white" : "bg-muted"}`}>
                     {connected ? "ao vivo" : "histórico"}
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {semId ? (
-                  <p className="text-sm text-muted-foreground py-10 text-center">
-                    Sensor ainda não identificado — aguardando a primeira leitura para carregar o histórico.
+                  <p className="text-sm text-muted-foreground py-8 text-center">
+                    Aguardando primeira leitura...
                   </p>
                 ) : d.serie.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-10 text-center">
+                  <p className="text-sm text-muted-foreground py-8 text-center">
                     Sem leituras nesse período.
                   </p>
                 ) : (
                   <>
-                    <div className="h-64 w-full">
+                    <div className="h-48 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={d.serie}>
                           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis dataKey="time" axisLine={false} tickLine={false} className="text-xs" minTickGap={32} />
-                          <YAxis axisLine={false} tickLine={false} className="text-xs" width={40} />
+                          <XAxis dataKey="time" axisLine={false} tickLine={false} className="text-xs" minTickGap={40} />
+                          <YAxis axisLine={false} tickLine={false} className="text-xs" width={36} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: "hsl(var(--card))",
                               border: "1px solid hsl(var(--border))",
                               borderRadius: "8px",
+                              fontSize: "0.75rem",
                             }}
                           />
                           <Line
@@ -268,10 +272,10 @@ const Analytics = () => {
                     </div>
 
                     {d.agg && (
-                      <div className="grid grid-cols-4 gap-4 mt-4 text-center">
+                      <div className="grid grid-cols-4 gap-2 mt-3 text-center">
                         <Resumo rotulo="Média" valor={d.agg.media} unidade={m.unidade} />
-                        <Resumo rotulo="Mínimo" valor={d.agg.minimo} unidade={m.unidade} />
-                        <Resumo rotulo="Máximo" valor={d.agg.maximo} unidade={m.unidade} />
+                        <Resumo rotulo="Mín" valor={d.agg.minimo} unidade={m.unidade} />
+                        <Resumo rotulo="Máx" valor={d.agg.maximo} unidade={m.unidade} />
                         <Resumo rotulo="Leituras" valor={d.agg.total} />
                       </div>
                     )}
@@ -280,7 +284,8 @@ const Analytics = () => {
               </CardContent>
             </Card>
           );
-          })
+          })}
+          </div>
         )}
       </main>
     </div>

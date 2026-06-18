@@ -63,13 +63,17 @@ git clone <URL_DO_REPOSITORIO>
 cd Solo-Seguro
 ```
 
-2. 🔐 Configure variáveis de ambiente (opcional, conforme backend)
+2. 🔐 Configure variáveis de ambiente
 
-Crie um arquivo `.env` na raiz e defina, se necessário:
+Crie um arquivo `.env` na raiz com as variáveis do backend e os UUIDs dos sensores:
 
 ```bash
-VITE_API_URL=https://sua-api.exemplo.com
-VITE_WS_URL=wss://seu-websocket.exemplo.com
+VITE_API_URL=http://localhost:8080
+VITE_SSE_URL=http://localhost:8080/api/v1/sse/leitura
+VITE_SENSOR_TEMP=40000000-0000-0000-0000-000000000002
+VITE_SENSOR_UMID=40000000-0000-0000-0000-000000000001
+VITE_SENSOR_GAS=40000000-0000-0000-0000-000000000004
+VITE_SENSOR_PH=40000000-0000-0000-0000-000000000003
 ```
 
 3. 📦 Instale as dependências
@@ -120,20 +124,20 @@ npm run preview
 
 ---
 
+### 👤 Usuário Padrão
+
+Ao subir o backend pela primeira vez, o banco já vem com um usuário administrador via seed (migração Flyway):
+
+| Campo | Valor |
+|-------|-------|
+| **Email** | `admin@soloseguro.com` |
+| **Senha** | `Admin@1234` |
+| **Cargo** | ADMIN (acesso total) |
+
+---
+
 ### 🤝 Como contribuir
 
 - 🐞 Abra uma Issue descrevendo a proposta/bug com contexto e steps
 - 🌿 Faça um fork e crie uma branch descritiva (`feature/…`, `fix/…`)
 - 🔁 Envie um Pull Request com escopo claro e screenshots quando aplicável
-
----
-
-### 📄 Licença
-
-Definir licença do projeto (ex.: MIT). Enquanto não definida, considerar uso interno/acadêmico para a INOVAWEEK da UVV.
-
----
-
-### 🙏 Créditos
-
-Projeto idealizado para a **INOVAWEEK da UVV**, com foco em inovação aplicada à segurança de solo e prevenção de desastres. Agradecimentos à equipe, orientadores e à comunidade que apoia iniciativas de ciência aberta e IoT aplicada.
